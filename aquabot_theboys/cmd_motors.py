@@ -5,6 +5,7 @@ from rclpy.node import Node
 import math
 from sensors import MySensors
 from std_msgs.msg import Float64
+from std_msgs.msg import Float64MultiArray
 import os # seulement pour les tests
 
 class MyCmdMotors(Node):
@@ -17,15 +18,19 @@ class MyCmdMotors(Node):
         timer_period = 0.1  # Période du timer en secondes
         # Appel la fonction pour la cmd moteurs toutes les 100ms
         self.timer = self.create_timer(timer_period, self.timer_callback)
+        self.create_subscription(Float64MultiArray, '/cmd_motors', self.cmd_motors_callback, 10)
         self.pos = 0.0
         self.thrust = 0.0
+        self.angle_cmd_motors=0.0
+        self.dist_cmd_motors=0.0
 
     def timer_callback(self):
         msg_pos = Float64()
         msg_thrust = Float64()
         sensors_info = MySensors()
-        cmd_angle = sensors_info.angle_cmd_motors
-        cmd_dist = sensors_info.dist_cmd_motors
+        cmd_angle = self.angle_cmd_motors
+        cmd_dist = self.dist_cmd_motors
+        self.get_logger().info('Val recup: angle = %f, distance = %f' % (cmd_angle, cmd_dist))
         # Si l'angle est trop grand on ne déplace pas le drone mais on le fait tourner sur lui même
         if abs(cmd_angle) >= 0.1:
             if cmd_angle >= math.pi/4 :
@@ -53,16 +58,19 @@ class MyCmdMotors(Node):
         # Affichage de la commande envoyé
         self.get_logger().info('Envoi: pos = %f, thrust = %f' % (msg_pos.data, msg_thrust.data))
 
+    def cmd_motors_callback(self, msg):
+        self.angle_cmd_motors, self.dist_cmd_motors = msg.data
+        self.get_logger().info('Received: angle = %f, distance = %f' % (self.angle_cmd_motors, self.dist_cmd_motors))
 
 def main(args=None):
     rclpy.init(args=args)
 
     node = MyCmdMotors()
-    while 1:
-        rclpy.spin(node)
+    
+    rclpy.spin(node)
 
-    #node.destroy_node()
-    #rclpy.shutdown()
+    node.destroy_node()
+    rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
