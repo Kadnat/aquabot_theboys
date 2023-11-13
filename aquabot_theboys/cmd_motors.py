@@ -3,10 +3,10 @@
 import rclpy
 from rclpy.node import Node
 import math
-from sensors import MySensors
 from std_msgs.msg import Float64
 from std_msgs.msg import Float64MultiArray
 import os # seulement pour les tests
+from time import sleep
 
 class MyCmdMotors(Node):
     def __init__(self):
@@ -23,31 +23,53 @@ class MyCmdMotors(Node):
         self.thrust = 0.0
         self.angle_cmd_motors=0.0
         self.dist_cmd_motors=0.0
+        #self.first_in = 0
+        self.dist_ancienne = 10000
 
     def timer_callback(self):
         msg_pos = Float64()
         msg_thrust = Float64()
-        sensors_info = MySensors()
         cmd_angle = self.angle_cmd_motors
         cmd_dist = self.dist_cmd_motors
-        self.get_logger().info('Val recup: angle = %f, distance = %f' % (cmd_angle, cmd_dist))
-        # Si l'angle est trop grand on ne déplace pas le drone mais on le fait tourner sur lui même
-        if abs(cmd_angle) >= 0.1:
-            if cmd_angle >= math.pi/4 :
-                self.pos = math.pi/4  
-                self.thrust = 100.0
-            elif cmd_angle <= math.pi/4 :
-                self.pos = -math.pi/4 
-                self.thrust = 100.0
+        #self.get_logger().info('Val recup: angle = %f, distance = %f' % (cmd_angle, cmd_dist))
+        if cmd_dist>10:
+            if cmd_dist>self.dist_ancienne+0.3:
+                self.get_logger().info('YOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO')
+                self.pos=math.pi/8
+                self.thrust=500.0
             else :
-                self.pos = cmd_angle
-                self.thrust = 50.0
-        else :
-            self.pos = 0.0
-            if cmd_dist < 10.0 :
-                self.thrust = 0.0
-            else  :
-                self.thrust = 100.0
+                self.thrust=1000.0
+                self.pos=0.0
+        else:
+            self.pos=0.0
+            self.thrust=0.0
+        self.dist_ancienne = cmd_dist
+
+
+
+
+        # Si l'angle est trop grand on ne déplace pas le drone mais on le fait tourner sur lui même
+        # if abs(cmd_angle) >= 1+2*math.pi/3:
+        #     self.first_in = 0
+        #     if cmd_angle >= math.pi/4+math.pi :
+        #         self.pos = math.pi/4  
+        #         self.thrust = 100.0
+        #     elif cmd_angle <= math.pi/4-math.pi :
+        #         self.pos = -math.pi/4 
+        #         self.thrust = 100.0
+        #     else :
+        #         self.pos = cmd_angle
+        #         self.thrust = 50.0
+        # else :
+        #     self.pos = 0.0
+        #     if self.first_in :
+        #         sleep(0.5)
+        #         if cmd_dist < 10.0 :
+        #             self.thrust = 0.0
+        #         else  :
+        #             self.thrust = 1000.0
+        #     else :
+        #         self.first_in = 1
             
         #  On affecte les variables aux messages
         msg_pos.data= self.pos

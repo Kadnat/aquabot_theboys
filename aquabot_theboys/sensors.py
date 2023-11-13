@@ -36,11 +36,11 @@ class MySensors(Node):
             msg.orientation.z
         )
         _, _, self.current_orientation = quat2euler(qconjugate(quaternion))
-        self.get_logger().info('IMU callback executed, current orientation: %s' % self.current_orientation)
+        #self.get_logger().info('IMU callback executed, current orientation: %s' % self.current_orientation)
 
     def gps_callback(self, msg):
         self.current_position = (msg.latitude, msg.longitude)
-        self.get_logger().info('GPS callback executed, current position: %s' % str(self.current_position))
+        #self.get_logger().info('GPS callback executed, current position: %s' % str(self.current_position))
 
     def pinger_callback(self, msg):
         print(msg)
@@ -60,7 +60,7 @@ class MySensors(Node):
                 buoy_position[0] - self.current_position[0],
                 buoy_position[1] - self.current_position[1]
             )
-            self.get_logger().info('Relative position to buoy: %s' % str(relative_position))
+            #self.get_logger().info('Relative position to buoy: %s' % str(relative_position))
             self.angle_cmd_motors = relative_bearing
             self.dist_cmd_motors= self.current_range_to_buoy
             msg_cmd_motors = Float64MultiArray()
