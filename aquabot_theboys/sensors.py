@@ -26,7 +26,9 @@ class MySensors(Node):
         self.create_subscription(Imu, "/wamv/sensors/imu/imu/data", self.imu_callback, 10)
         self.create_subscription(NavSatFix, "/wamv/sensors/gps/gps/fix", self.gps_callback, 10)
         self.create_subscription(ParamVec, "/wamv/sensors/acoustics/receiver/range_bearing", self.pinger_callback, 10)
+        self.create_subscription(Float64, "/data/filtered", self.data_filtered_pinger, 10)
         self.pub_cmd_motors = self.create_publisher(Float64MultiArray, '/cmd_motors', 10)
+        self.pub_filter = self.create_publisher(Float64, '/data/to_filter', 10)
 
     def imu_callback(self, msg):
         quaternion = (
@@ -49,7 +51,11 @@ class MySensors(Node):
                 self.current_bearing_to_buoy = param.value.double_value
             elif param.name == 'range':
                 self.current_range_to_buoy = param.value.double_value
-
+        #########Pour test filter##############
+        msg_filter = Float64()
+        msg_filter.data = self.current_bearing_to_buoy
+        self.pub_filter.publish(msg_filter)
+        #######################################
         if self.current_position is not None and self.current_orientation is not None:
             relative_bearing = self.current_bearing_to_buoy - self.current_orientation
             buoy_position = (
@@ -66,6 +72,9 @@ class MySensors(Node):
             msg_cmd_motors = Float64MultiArray()
             msg_cmd_motors.data = [self.angle_cmd_motors, self.dist_cmd_motors]
             self.pub_cmd_motors.publish(msg_cmd_motors)
+
+    def data_filtered_pinger(self, msg):
+        self.get_logger().info('filter callback executed, data filtered: %s' % str(msg.data))
 
 def main(args=None):
     rclpy.init(args=args)

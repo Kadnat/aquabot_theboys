@@ -7,7 +7,8 @@
   <maintainer email="blavonathanael@gmail.com">nathanael</maintainer>
   <license>TODO: License declaration</license>
 
-  <depend>rclpy</depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>scipy</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

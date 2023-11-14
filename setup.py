@@ -26,6 +26,7 @@ setup(
         'console_scripts': [
             'sensors = aquabot_theboys.sensors:main',
             'cmd_motors = aquabot_theboys.cmd_motors:main',
+            'filters = aquabot_theboys.filters:main',
         ],
     },
 )
