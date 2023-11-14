@@ -5,8 +5,6 @@ from rclpy.node import Node
 import math
 from std_msgs.msg import Float64
 from std_msgs.msg import Float64MultiArray
-import os # seulement pour les tests
-from time import sleep
 
 class MyCmdMotors(Node):
     def __init__(self):
@@ -23,80 +21,37 @@ class MyCmdMotors(Node):
         self.thrust = 0.0
         self.angle_cmd_motors=0.0
         self.dist_cmd_motors=0.0
-        self.turn_in_progress=False
-        self.first_turn=True
-        self.first_in = 0
-        self.stop_turn=False
-        self.is_accelerating=False
-
-    def position_corrector(self):
-
-        msg_pos = Float64()
-        msg_thrust = Float64()
-
-        while (((self.angle_cmd_motors >= 0) & (self.angle_cmd_motors <= 0.2))|((self.angle_cmd_motors >= -0.2) & (self.angle_cmd_motors <= 0))):
-            # if ((self.angle_cmd_motors >= 0.2) & (self.angle_cmd_motors <= math.pi/2)):
-            #     self.pos = -math.pi/8
-            #     self.thrust = 500.0
-            # elif ((self.angle_cmd_motors >= math.pi/2) & (self.angle_cmd_motors <= math.pi)):
-            #     self.pos = -math.pi/4
-            #     self.thrust = 500.0
-            # elif ((self.angle_cmd_motors >= -math.pi) & (self.angle_cmd_motors <= -math.pi/2)):
-            #     self.pos = math.pi/4
-            #     self.thrust = 500.0
-            # elif ((self.angle_cmd_motors >= -math.pi/2) & (self.angle_cmd_motors <= -0.2)):
-                self.pos = math.pi/8
-                self.thrust = 250.0
-
-                msg_pos.data= self.pos
-                msg_thrust.data = self.thrust
-                # On publie les messages les messages
-                self.pub_pos.publish(msg_pos)
-                self.pub_thrust.publish(msg_thrust)
-
-
-
-    def motor_controller(self):
-        # cmd_dist = self.dist_cmd_motors
-        # if(self.is_accelerating==False):
-        #     if(cmd_dist>=100.0):
-        #         self.position_corrector()
-        #         self.acceleration(5000.0)
-        #     else:
-        #         if(cmd_dist>=50):
-        #             #self.decceleration()
-        #             self.position_corrector()
-        #             self.acceleration(5000.0)
-        #         else:
-        #             if(cmd_dist>=20):
-        #                 #self.decceleration()
-        #                 self.position_corrector()
-        #                 self.acceleration(1000.0)
-        #             else:
-        #                 if(cmd_dist>10):
-        #                     #self.decceleration()
-        #                     self.position_corrector()
-        #                     self.acceleration(100.0)
-        #                 else:
-        #                     if(cmd_dist<5):
-        #                         self.pos=0.0
-        #                         self.thrust=0.0
-
-        while (self.dist_cmd_motors<5):
-            
-            if(((self.angle_cmd_motors >= 0) & (self.angle_cmd_motors <= 0.2))|((self.angle_cmd_motors >= -0.2) & (self.angle_cmd_motors <= 0))):
-                self.decceleration()
-                self.position_corrector()
-            else:
-                self.acceleration(5000.0)
-
-             
+        self.prev_pos = 0.0
+        self.prev_thrust = 0.0
+        self.aligning = False  # Ajoutez un indicateur pour savoir si le bateau est en train de s'aligner
+        self.angle_history = [0.0] * 10  # Ajoutez un historique des angles
 
     def timer_callback(self):
         msg_pos = Float64()
         msg_thrust = Float64()
 
-        self.motor_controller()
+        # Si l'angle est proche de zéro, avancez tout droit
+        if abs(self.angle_cmd_motors) < 0.2:
+            self.pos = 0.0
+            target_thrust = 3000.0  # Vitesse maximale
+            self.aligning = False  # Le bateau est maintenant aligné
+        # Sinon, tournez sur place pour vous aligner avec la bouée
+        else:
+            target_pos = math.copysign(math.pi / 4, -self.angle_cmd_motors)  # Tournez à gauche ou à droite en fonction de l'angle
+            target_thrust = 200.0
+            self.aligning = True  # Le bateau est en train de s'aligner
+
+        # Si le bateau est en train de s'aligner, réduisez progressivement la position du moteur
+        if self.aligning:
+            ramp_rate = 0.1  # Taux de changement maximal par appel de fonction
+            self.pos = self.prev_pos + ramp_rate * (target_pos - self.prev_pos)
+            self.thrust = 210.0
+        else:
+            # Vérifiez si l'angle a peu changé au cours des 10 derniers appels de fonction
+            if max(self.angle_history) - min(self.angle_history) < 0.01:
+                # Appliquez la logique de rampe pour la poussée
+                ramp_rate = 0.1  # Taux de changement maximal par appel de fonction
+                self.thrust = self.prev_thrust + ramp_rate * (target_thrust - self.prev_thrust)
 
         msg_pos.data= self.pos
         msg_thrust.data = self.thrust
@@ -106,46 +61,13 @@ class MyCmdMotors(Node):
         # Affichage de la commande envoyé
         self.get_logger().info('Envoi: pos = %f, thrust = %f' % (msg_pos.data, msg_thrust.data))  
 
-                
-    def acceleration(self, final_value):
-        # self.pos=0.0
-        # self.thrust=0.0
-        # msg_pos = Float64()
-        # msg_thrust = Float64()
-        # for i in range(3):
-        #     self.is_accelerating=True
-        #     self.thrust = self.thrust + final_value/3
-        #     msg_pos.data= self.pos
-        #     msg_thrust.data = self.thrust
-        #     self.pub_pos.publish(msg_pos)
-        #     self.pub_thrust.publish(msg_thrust)
-        #     self.get_logger().info('Accel: pos = %f, thrust = %f' % (msg_pos.data, msg_thrust.data))    
-        #     sleep(2)
-        # self.is_accelerating=False
+        # Mémorisez la position et la poussée pour la prochaine fois
+        self.prev_pos = self.pos
+        self.prev_thrust = self.thrust
 
-        self.pos=0.0
-        msg_pos = Float64()
-        msg_thrust = Float64()
-        self.is_accelerating=True
-        self.thrust = final_value
-        msg_pos.data= self.pos
-        msg_thrust.data = self.thrust
-        self.pub_pos.publish(msg_pos)
-        self.pub_thrust.publish(msg_thrust)
-        self.get_logger().info('Accel: pos = %f, thrust = %f' % (msg_pos.data, msg_thrust.data))    
-        #sleep(10)
-        self.is_accelerating=False
-
-    def decceleration(self):    
-        msg_pos = Float64()
-        msg_thrust = Float64()
-        self.thrust = 0.0
-        msg_pos.data= self.pos
-        msg_thrust.data = self.thrust
-        self.pub_pos.publish(msg_pos)
-        self.pub_thrust.publish(msg_thrust)  
-        sleep(5)
-            
+        # Mettez à jour l'historique des angles
+        self.angle_history.pop(0)
+        self.angle_history.append(self.angle_cmd_motors)
 
     def cmd_motors_callback(self, msg):
         self.angle_cmd_motors, self.dist_cmd_motors = msg.data
