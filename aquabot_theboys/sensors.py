@@ -61,7 +61,7 @@ class MySensors(Node):
                 buoy_position[1] - self.current_position[1]
             )
             #self.get_logger().info('Relative position to buoy: %s' % str(relative_position))
-            self.angle_cmd_motors = relative_bearing
+            self.angle_cmd_motors = self.current_bearing_to_buoy
             self.dist_cmd_motors= self.current_range_to_buoy
             msg_cmd_motors = Float64MultiArray()
             msg_cmd_motors.data = [self.angle_cmd_motors, self.dist_cmd_motors]
