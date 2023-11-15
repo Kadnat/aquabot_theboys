@@ -11,6 +11,7 @@ from transforms3d.quaternions import qconjugate
 import math
 from std_msgs.msg import Float64MultiArray
 
+
 class MySensors(Node):
     angle_cmd_motors = 0.0
     dist_cmd_motors = 0.0
@@ -24,7 +25,7 @@ class MySensors(Node):
         self.current_range_to_buoy = None
 
         self.create_subscription(Imu, "/wamv/sensors/imu/imu/data", self.imu_callback, 10)
-        self.create_subscription(NavSatFix, "/wamv/sensors/gps/gps/fix", self.gps_callback, 10)
+        
         self.create_subscription(ParamVec, "/wamv/sensors/acoustics/receiver/range_bearing", self.pinger_callback, 10)
         self.create_subscription(Float64, "/data/filtered", self.data_filtered_pinger, 10)
         self.pub_cmd_motors = self.create_publisher(Float64MultiArray, '/cmd_motors', 10)
@@ -40,10 +41,6 @@ class MySensors(Node):
         _, _, self.current_orientation = quat2euler(qconjugate(quaternion))
         #self.get_logger().info('IMU callback executed, current orientation: %s' % self.current_orientation)
 
-    def gps_callback(self, msg):
-        self.current_position = (msg.latitude, msg.longitude)
-        #self.get_logger().info('GPS callback executed, current position: %s' % str(self.current_position))
-
     def pinger_callback(self, msg):
         print(msg)
         for param in msg.params:
@@ -56,22 +53,13 @@ class MySensors(Node):
         msg_filter.data = self.current_bearing_to_buoy
         self.pub_filter.publish(msg_filter)
         #######################################
-        if self.current_position is not None and self.current_orientation is not None:
-            relative_bearing = self.current_bearing_to_buoy - self.current_orientation
-            buoy_position = (
-                self.current_position[0] + self.current_range_to_buoy * math.cos(relative_bearing),
-                self.current_position[1] + self.current_range_to_buoy * math.sin(relative_bearing)
-            )
-            relative_position = (
-                buoy_position[0] - self.current_position[0],
-                buoy_position[1] - self.current_position[1]
-            )
-            #self.get_logger().info('Relative position to buoy: %s' % str(relative_position))
-            self.angle_cmd_motors = self.current_bearing_to_buoy
-            self.dist_cmd_motors= self.current_range_to_buoy
-            msg_cmd_motors = Float64MultiArray()
-            msg_cmd_motors.data = [self.angle_cmd_motors, self.dist_cmd_motors]
-            self.pub_cmd_motors.publish(msg_cmd_motors)
+        #self.get_logger().info('Relative position to buoy: %s' % str(relative_position))
+        # recup les donnéees filtrés
+        self.angle_cmd_motors = self.current_bearing_to_buoy
+        self.dist_cmd_motors= self.current_range_to_buoy
+        msg_cmd_motors = Float64MultiArray()
+        msg_cmd_motors.data = [self.angle_cmd_motors, self.dist_cmd_motors] # remplacer ce truc par x et y
+        self.pub_cmd_motors.publish(msg_cmd_motors)
 
     def data_filtered_pinger(self, msg):
         self.get_logger().info('filter callback executed, data filtered: %s' % str(msg.data))
