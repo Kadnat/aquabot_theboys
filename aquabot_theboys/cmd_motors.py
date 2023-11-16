@@ -21,6 +21,7 @@ class MyCmdMotors(Node):
         self.timerthrust = self.create_timer(timer_period, self.timer_callback)
         self.create_subscription(Float64MultiArray, '/cmd_motors', self.cmd_motors_callback, 10)
         self.create_subscription(NavSatFix, "/wamv/sensors/gps/gps/fix", self.gps_callback, 10)
+        self.create_subscription(Float64, "/current_pos", self.imu_callback, 10)
         self.pos = 0.0
         self.thrust = 0.0
         ###vairable x et y a la place des deux suivantes###
@@ -35,47 +36,62 @@ class MyCmdMotors(Node):
         self.angle_history = [0.0] * 10  # Ajoutez un historique des angles
         self.x_actual = 0.0
         self.y_actual = 0.0
+        self.current_orientation = 0.0
         #### à voir pour ajouter l'orientation actuel
+
+    def imu_callback(self,msg):
+        self.current_orientation = msg.data
 
     def gps_callback(self, msg):
         # On définit les parametres de projection
-        proj = pyproj.Proj(proj='utm', zone=31, ellps='WGS84', preserve_units=True)
+        proj_latlon = pyproj.Proj(proj='latlong', datum='WGS84')
+        proj_xy = pyproj.Proj(proj="utm", zone=44, datum='WGS84')
         # On convertit les données
-        self.x_actual, self.y_actual = proj(msg.latitude, msg.longitude)
+        self.x_actual, self.y_actual = pyproj.transform(proj_latlon, proj_xy, msg.latitude, msg.longitude)
+
         #self.get_logger().info('GPS callback executed, current position: %s' % str(self.current_position))
 
     def timer_callback(self):
+        msg_pos = Float64()
+        msg_thrust = Float64()
         delta_x = self.x_to_reach-self.x_actual
         delta_y = self.y_to_reach-self.y_actual
-        distance = sqrt((delta_x)**2 + (delta_y)**2)
+        # self.get_logger().info('x actual : %s' % str(self.x_actual))
+        # self.get_logger().info('y actual : %s' % str(self.y_actual))
+        # self.get_logger().info('x to reach : %s' % str(self.x_to_reach))
+        # self.get_logger().info('y to reach : %s' % str(self.y_to_reach))
         ########################################
-        target_angle = atan2(delta_y, delta_x)
-        angle_diff = target_angle - self.pos
+        angle_diff = atan2(delta_y, delta_x) - self.current_orientation
         while angle_diff > pi:
             angle_diff -= 2 * pi
         while angle_diff < -pi:
             angle_diff += 2 * pi
+        msg_pos.data = pi/4
+        #if abs(angle_diff)>abs(angle_diff-pi):
+        angle_diff=angle_diff-pi
+        if angle_diff<0:
+            msg_pos.data = -pi/4
         self.thrust = 1000.0 
         rotation_time = abs(angle_diff) / ((pi / 4) * (12000/abs(self.thrust)))
-        msg_pos = Float64()
-        msg_thrust = Float64()
-        msg_pos.data = pi/4
-        self.pub_pos.publish(msg_pos)
-        msg_thrust.data = self.thrust
-        self.pub_thrust.publish(msg_thrust)
-        self.get_logger().info('On va tourner pendant : %s' % str(rotation_time))
-        ## on dort jusq'à que le moteur soit en position
-        sleep(rotation_time)
-        msg_pos.data = 0.0
-        self.pub_pos.publish(msg_pos)
-        ## on dort jusq'à que le moteur revienne en position initiale
-        sleep(rotation_time)
+        self.get_logger().info('Angle diff : %s' % str(angle_diff))
+        if abs(angle_diff)>0.5:
+            self.pub_pos.publish(msg_pos)
+            msg_thrust.data = self.thrust
+            self.pub_thrust.publish(msg_thrust)
+            self.get_logger().info('On va tourner pendant : %s' % str(rotation_time))
+            ## on dort jusq'à que le moteur soit en position
+            sleep(rotation_time)
+            msg_pos.data = 0.0
+            self.pub_pos.publish(msg_pos)
+            ## on dort jusq'à que le moteur revienne en position initiale
+            sleep(rotation_time)
         self.thrust = 5000.0 # peut etre un peu rapide, a voir en test
         # A voir si on update pas sans cesse la position à rejoindre (timer inutile si on update)
-        time_to_travel = distance/self.thrust
+        #distance = sqrt((delta_x)**2 + (delta_y)**2)
+        #time_to_travel = distance/self.thrust
         msg_thrust.data = self.thrust
         self.pub_thrust.publish(msg_thrust)
-        sleep(time_to_travel) # a voir si on laisse ducoup
+        #sleep(time_to_travel) # a voir si on laisse ducoup
 
 
         

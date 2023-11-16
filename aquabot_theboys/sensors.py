@@ -30,6 +30,7 @@ class MySensors(Node):
         self.create_subscription(Float64, "/data/filtered", self.data_filtered_pinger, 10)
         self.pub_cmd_motors = self.create_publisher(Float64MultiArray, '/cmd_motors', 10)
         self.pub_filter = self.create_publisher(Float64, '/data/to_filter', 10)
+        self.pub_current_pos = self.create_publisher(Float64, '/current_pos', 10)
 
     def imu_callback(self, msg):
         quaternion = (
@@ -39,6 +40,10 @@ class MySensors(Node):
             msg.orientation.z
         )
         _, _, self.current_orientation = quat2euler(qconjugate(quaternion))
+        msg_to_send = Float64()
+        msg_to_send.data = self.current_orientation
+        self.pub_current_pos.publish(msg_to_send)
+
         #self.get_logger().info('IMU callback executed, current orientation: %s' % self.current_orientation)
 
     def pinger_callback(self, msg):
@@ -62,7 +67,8 @@ class MySensors(Node):
         self.pub_cmd_motors.publish(msg_cmd_motors)
 
     def data_filtered_pinger(self, msg):
-        self.get_logger().info('filter callback executed, data filtered: %s' % str(msg.data))
+        test=1 # juste pour pas avoir d'erreur
+        #self.get_logger().info('filter callback executed, data filtered: %s' % str(msg.data))
 
 def main(args=None):
     rclpy.init(args=args)
