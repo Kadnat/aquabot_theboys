@@ -34,7 +34,6 @@ class FiltersNode(Node):
 
 
     def callback_data_to_filter(self, msg):
-        self.get_logger().info(f'ANT1: {msg.data}')
         if self.data_counter > MAX_NUMBER_OF_ELEMENTS:  
             self.data_array.pop(0) # si >100, on enleve le premier element
 
