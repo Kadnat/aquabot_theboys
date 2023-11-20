@@ -20,7 +20,7 @@ class MyCmdMotors(Node):
         self.create_timer(timer_period, self.cmd_motors_callback)
         self.create_subscription(Float64MultiArray, '/position/to_reach', self.position_to_reach_callback, 10)
         self.create_subscription(Float64, "/position/orientation", self.orientation_callback, 10)
-        self.create_subscription(Float64, "/position/actual", self.position_actual, 10)
+        self.create_subscription(Float64MultiArray, "/position/current", self.position_actual, 10)
         self.x_to_reach = 0.0
         self.y_to_reach = 0.0
         self.aligning = False  # Ajoutez un indicateur pour savoir si le bateau est en train de s'aligner
@@ -40,11 +40,17 @@ class MyCmdMotors(Node):
     def cmd_motors_callback(self):
         msg_pos = Float64()
         msg_thrust = Float64()
-        delta_x = self.x_to_reach-self.x_actual
-        delta_y = self.y_to_reach-self.y_actual
-        angle_diff = (atan2(delta_y, delta_x)+pi/2) % (pi) + self.current_orientation
-        self.get_logger().info('Angle again : %s' % str(angle_diff))
-        if abs(angle_diff)>0.3: 
+        delta_x = (self.x_actual - self.x_to_reach) 
+        delta_y = (self.y_actual - self.y_to_reach)
+        #self.get_logger().info('Delta x : %f, Delta y : %f   TWO' % (delta_x, delta_y))
+        #self.get_logger().info('Angle : %s' % str(atan2(delta_y, delta_x)))
+        angle_diff = ((atan2(delta_y, delta_x) + self.current_orientation)) 
+        if angle_diff > pi:
+            angle_diff -= 2 * pi
+        elif angle_diff < -pi:
+            angle_diff += 2 * pi
+        self.get_logger().info('Angle : %s' % str(angle_diff))
+        if abs(angle_diff)>0.1: 
             if angle_diff>0.0:
                 msg_pos.data = -pi/2
             else:

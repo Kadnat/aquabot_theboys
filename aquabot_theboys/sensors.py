@@ -7,7 +7,7 @@ from std_msgs.msg import Float64
 from ros_gz_interfaces.msg import ParamVec
 from transforms3d.euler import quat2euler
 from transforms3d.quaternions import qconjugate
-from math import pi, sin, cos, radians
+from math import pi, sin, cos, radians, atan2
 from std_msgs.msg import Float64MultiArray
 import pyproj
 
@@ -52,13 +52,16 @@ class MySensors(Node):
             elif param.name == 'range':
                 dist_bearing = param.value.double_value
         # Calcul de l'angle dans le référentiel de  la bouée
-        difference_angle = self.current_orientation - angle_bearing
+        difference_angle = angle_bearing - self.current_orientation
         # Normaliser la différence d'angle 
         difference_angle = (difference_angle + pi) % (2 * pi) - pi
-        dY = angle_bearing * cos(difference_angle)  # changement en y
-        dX = dist_bearing * sin(difference_angle)  # changement en x
+        self.get_logger().info('Angle1 : %s' % str(difference_angle))
+        dY = dist_bearing * sin(difference_angle)  # changement en y
+        dX = dist_bearing * cos(difference_angle)  # changement en x
         x_to_reach = self.x_actual - dX
         y_to_reach = self.y_actual - dY
+        #self.get_logger().info('Delta x : %f, Delta y : %f  ONE' % (dX,dY))
+        #self.get_logger().info('Angle2 : %s' % str(atan2(dY,dX)))
         msg_pos_to_reach.data = [x_to_reach, y_to_reach] 
         self.pub_pos_to_reach.publish(msg_pos_to_reach)
 
