@@ -27,6 +27,7 @@ setup(
             'sensors = aquabot_theboys.sensors:main',
             'cmd_motors = aquabot_theboys.cmd_motors:main',
             'filters = aquabot_theboys.filters:main',
+            'hub = aquabot_theboys.hub:main',
         ],
     },
 )

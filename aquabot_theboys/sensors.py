@@ -28,7 +28,7 @@ class MySensors(Node):
         self.create_subscription(ParamVec, "/wamv/sensors/acoustics/receiver/range_bearing", self.pinger_callback, 10)
         #self.create_subscription(Float64, "/data/filtered", self.data_filtered_pinger, 10)
         self.pub_current_pos = self.create_publisher(Float64MultiArray, '/position/current', 10)
-        self.pub_pos_to_reach = self.create_publisher(Float64MultiArray, '/position/to_reach', 10)
+        self.pub_pos_buoy = self.create_publisher(Float64MultiArray, '/position/buoy', 10)
         #self.pub_filter = self.create_publisher(Float64, '/data/to_filter', 10)
         self.pub_current_orientation = self.create_publisher(Float64, '/position/orientation', 10)
 
@@ -63,7 +63,7 @@ class MySensors(Node):
         #self.get_logger().info('Delta x : %f, Delta y : %f  ONE' % (dX,dY))
         #self.get_logger().info('Angle2 : %s' % str(atan2(dY,dX)))
         msg_pos_to_reach.data = [x_to_reach, y_to_reach] 
-        self.pub_pos_to_reach.publish(msg_pos_to_reach)
+        self.pub_pos_buoy.publish(msg_pos_to_reach)
 
     # def data_filtered_pinger(self, msg):
     #     #########Pour test filter, à mettre quelque part si besoin##############
