@@ -7,10 +7,10 @@
   <maintainer email="blavonathanael@gmail.com">nathanael</maintainer>
   <license>TODO: License declaration</license>
 
-  <exec_depend>rclpy</exec_depend>
-  <exec_depend>scipy</exec_depend>
-  <exec_depend>pyproj</exec_depend>
-
+  <depend>rclpy</depend>
+  <depend>scipy</depend>
+  <depend>pyproj</depend>
+  <depend>aquabot_theboys_msgs</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

@@ -2,6 +2,7 @@ import rclpy
 from rclpy.node import Node
 from enum import Enum
 from std_msgs.msg import Float64MultiArray
+from aquabot_theboys_msgs.msg import TwoFloat64Array
 
 class State(Enum):
     REACH_ZONE = 0
@@ -19,9 +20,16 @@ class MyHub(Node):
         # Appel la fonction pour la cmd moteurs toutes les 100ms
         self.create_timer(timer_period, self.hub_callback)
         self.create_subscription(Float64MultiArray, '/position/buoy', self.position_buoy_callback, 10)
+        self.create_subscription(TwoFloat64Array, 'lidar/data', self.lidar_data_callback, 10)
         self.x_buoy = 0.0
         self.y_buoy = 0.0
         self.state_hub = State.REACH_ZONE
+
+    def lidar_data_callback(self, msg):
+        angle = msg.array1.data # revoir comment recup la donnee
+        distance = msg.array2.data
+        for i, angle_find in angle:
+            self.get_logger().info('Angle : %f' % (angle_find))
 
     def position_buoy_callback(self, msg):
         self.x_buoy, self.y_buoy = msg.data

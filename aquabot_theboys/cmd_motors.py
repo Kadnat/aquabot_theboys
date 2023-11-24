@@ -43,7 +43,7 @@ class MyCmdMotors(Node):
             angle_diff -= 2 * pi
         elif angle_diff < -pi:
             angle_diff += 2 * pi
-        self.get_logger().info('Angle : %s' % str(angle_diff))
+        #self.get_logger().info('Angle : %s' % str(angle_diff))
         if abs(angle_diff)>0.1: 
             if angle_diff>0.0:
                 msg_pos.data = -pi/2
@@ -62,7 +62,7 @@ class MyCmdMotors(Node):
                 self.pub_thrust.publish(msg_thrust)
                 ## on dort jusq'à que le moteur revienne en position initiale
                 sleep(3)
-                self.get_logger().info('good')
+                #self.get_logger().info('good')
             else :  
                 msg_thrust.data = 5000.0
                 self.pub_thrust.publish(msg_thrust)
