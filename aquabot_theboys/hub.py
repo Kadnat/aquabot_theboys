@@ -2,6 +2,7 @@ import rclpy
 from rclpy.node import Node
 from enum import Enum
 from std_msgs.msg import Float64MultiArray
+from math import cos, sin, atan2, sqrt
 
 # State machine enum
 class State(Enum):
@@ -18,8 +19,11 @@ class MyHub(Node):
         self.pub_pos_to_reach = self.create_publisher(Float64MultiArray, '/position/to_reach', 10)
 
         # Calling State Machine every 100ms        
-        timer_period = 0.1  
-        self.create_timer(timer_period, self.hub_callback)
+        timer_period_1 = 0.1  
+        self.create_timer(timer_period_1, self.hub_callback)
+        # Calling Avoid function to see if we need to avoid something
+        timer_period_2 = 0.09
+        self.create_timer(timer_period_2, self.avoid_callback)
         # Getting Buoy position x,y
         self.create_subscription(Float64MultiArray, '/position/buoy', self.position_buoy_callback, 10)
         # Getting our Boat position x,y
@@ -30,10 +34,13 @@ class MyHub(Node):
         self.y_buoy = 0.0
         self.x_actual = 0.0
         self.y_actual = 0.0
+        self.x_obstacle = 0.0
+        self.y_obstacle = 0.0
         # Counter for getting the firsts values
         self.ctr_in_state = 0
         # State mahine variable
         self.state_hub = State.REACH_ZONE
+        self.previous_state = State.REACH_ZONE
 
     # Getting x,y position of our boat
     def current_pos_callback(self, msg):
@@ -50,7 +57,15 @@ class MyHub(Node):
             return True
         else:
             return False
-
+        
+    def avoid_callback(self):
+        # Calculer la distance entre la position actuelle et l'obstacle
+        distance = sqrt((self.x_actual-self.x_obstacle**2) + (self.y_actual-self.y_obstacle)**2)
+        # Si la distance est inférieure à la distance minimale, calculer les nouvelles coordonnées
+        if distance < 30.0:
+            self.previous_state = self.state_hub
+            self.state_hub = State.AVOID
+        
     # State machine
     def hub_callback(self):
         # The x,y position to send to the motors
@@ -78,7 +93,14 @@ class MyHub(Node):
             x=0
         # Avoid objects
         elif self.state_hub == State.AVOID:
-            x=0
+            # Calculer l'angle entre la position actuelle et l'obstacle
+            angle = atan2(self.y_actual-self.y_obstacle, self.x_actual-self.x_obstacle)
+            # Calculer les nouvelles coordonnées en ajoutant une étape dans la direction opposée
+            new_x = self.x_actual + 30.0 * cos(angle)
+            new_y = self.y_actual + 30.0 * sin(angle)
+            msg_pos_to_reach.data = [new_x, new_y] 
+            self.pub_pos_to_reach.publish(msg_pos_to_reach)
+            self.state_hub = self.previous_state
         else:
             print('State unknow')
 

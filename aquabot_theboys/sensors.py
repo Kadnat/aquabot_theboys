@@ -174,23 +174,24 @@ class MySensors(Node):
 
     #######A TESTER#############
     # Getting the ennemy x,y position
-    # def ennemy_pos_timer_callback(self):
-    #     msg_pos_to_reach = Float64MultiArray()
-    #     index_angle = [i for i, val in enumerate(self.lidar_angle) if self.angle_camera-0.1 <= val <= self.angle_camera+0.1]
+    def ennemy_pos_timer_callback(self):
+        msg_pos_to_reach = Float64MultiArray()
+        index_angle = [i for i, val in enumerate(self.lidar_angle) if self.angle_camera-0.1 <= val <= self.angle_camera+0.1]
+        distance = self.lidar_distance[index_angle[0]]
+        difference_angle = self.angle_camera - self.current_orientation
+        # Normaliser la différence d'angle
+        difference_angle = (difference_angle) % (2 * pi)
+        #self.get_logger().info('Angle1 : %s' % str(difference_angle))
+        dY = distance * sin(difference_angle)  # changement en y
+        dX = distance * cos(difference_angle)  # changement en x
+        x_to_reach = self.x_actual - dX
+        y_to_reach = self.y_actual - dY
+        #self.get_logger().info('Delta x : %f, Delta y : %f  ONE' % (dX,dY))
+        #self.get_logger().info('Angle2 : %s' % str(atan2(dY,dX)))
+        msg_pos_to_reach.data = [x_to_reach, y_to_reach]
+        self.pub_pos_ennemy.publish(msg_pos_to_reach)
 
-    #     distance = self.lidar_distance[index_angle[0]]
-    #     difference_angle = self.angle_camera - self.current_orientation
-    #     # Normaliser la différence d'angle
-    #     difference_angle = (difference_angle) % (2 * pi)
-    #     #self.get_logger().info('Angle1 : %s' % str(difference_angle))
-    #     dY = distance * sin(difference_angle)  # changement en y
-    #     dX = distance * cos(difference_angle)  # changement en x
-    #     x_to_reach = self.x_actual - dX
-    #     y_to_reach = self.y_actual - dY
-    #     #self.get_logger().info('Delta x : %f, Delta y : %f  ONE' % (dX,dY))
-    #     #self.get_logger().info('Angle2 : %s' % str(atan2(dY,dX)))
-    #     msg_pos_to_reach.data = [x_to_reach, y_to_reach]
-    #     self.pub_pos_ennemy.publish(msg_pos_to_reach)
+        
 
 
 
