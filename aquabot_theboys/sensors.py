@@ -41,7 +41,9 @@ class MySensors(Node):
         # Ennemy x,y position
         self.pub_pos_ennemy = self.create_publisher(Float64MultiArray, '/position/ennemy', 10)
         # Ennemy GPS position
-        self.pub_gps_ennemy = self.create_publisher(PoseStamped, "/vrx/patrolandfollow/alert_position", 10)
+        self.pub_gps_ennemy = self.create_publisher(PoseStamped, '/vrx/patrolandfollow/alert_position', 10)
+        # Object to avoid position
+        self.pub_pos_to_avoid = self.create_publisher(Float64MultiArray, '/position/to_avoid', 10)
         
         # Our current orientation
         self.current_orientation = 0.0
@@ -191,8 +193,20 @@ class MySensors(Node):
         msg_pos_to_reach.data = [x_to_reach, y_to_reach]
         self.pub_pos_ennemy.publish(msg_pos_to_reach)
 
-        
-
+    # Detect object to avoid
+    def detect_object(self):
+        msg_pos_to_reach = Float64MultiArray()
+        index_angle = [i for i, val in enumerate(self.lidar_angle) if -20 <= val <= 20]
+        distance = self.lidar_distance[index_angle[0]]
+        difference_angle = self.lidar_angle[index_angle[0]] - self.current_orientation
+        # Normaliser la différence d'angle
+        difference_angle = (difference_angle) % (2 * pi)
+        dY = distance * sin(difference_angle)  # changement en y
+        dX = distance * cos(difference_angle)  # changement en x
+        x_to_reach = self.x_actual - dX
+        y_to_reach = self.y_actual - dY
+        msg_pos_to_reach.data = [x_to_reach, y_to_reach]
+        self.pub_pos_to_avoid.publish(msg_pos_to_reach)
 
 
 
