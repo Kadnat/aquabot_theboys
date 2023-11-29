@@ -28,6 +28,7 @@ setup(
             'cmd_motors = aquabot_theboys.cmd_motors:main',
             'filters = aquabot_theboys.filters:main',
             'hub = aquabot_theboys.hub:main',
+            'object_detection_node = aquabot_theboys.object_detection_node:main',
         ],
     },
 )
