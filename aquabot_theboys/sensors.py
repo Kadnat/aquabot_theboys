@@ -9,7 +9,7 @@ from sensor_msgs.msg import PointCloud2, LaserScan
 from transforms3d.euler import quat2euler
 from transforms3d.quaternions import qconjugate
 from math import pi, sin, cos, radians, degrees
-from std_msgs.msg import Float64MultiArray
+from std_msgs.msg import Float64MultiArray, Bool
 from geometry_msgs.msg import PoseStamped
 
 
@@ -18,7 +18,7 @@ class MySensors(Node):
     def __init__(self):
         super().__init__('sensors')
         # Calling this function every 100ms to know the ennemy position
-        timer_period = 0.1  
+        #timer_period = 0.1  
         #self.create_timer(timer_period, self.ennemy_pos_timer_callback)
         # Get the IMU sensor informations
         self.create_subscription(Imu, "/wamv/sensors/imu/imu/data", self.imu_callback, 10)
@@ -31,6 +31,12 @@ class MySensors(Node):
         self.create_subscription(LaserScan, "/wamv/sensors/lidars/lidar_wamv_sensor/scan", self.lidar_scan_callback, 10)
         # Get the ennemy position
         self.create_subscription(Float64MultiArray, "/position/ennemy", self.ennemy_pos_callback, 10)
+        # To know if the boat ennemy is detected
+        self.create_subscription(Bool, 'object_detected', self.ennemy_finded_callback, 10)
+        # Boat ennemy angle from our boat
+        self.create_subscription(Float64, 'object_position', self.ennemy_angle_callback, 10)
+
+        
 
         # Current x,y position of our boat
         self.pub_current_pos = self.create_publisher(Float64MultiArray, '/position/current', 10)
@@ -55,6 +61,7 @@ class MySensors(Node):
         self.lidar_angle = []
         # Angle that separate us from the red boat
         self.angle_camera = 0
+
 
     # def lidar_points_callback(self, msg):
     #     # msg.height, msg.width # taille de nuage de points
@@ -174,24 +181,28 @@ class MySensors(Node):
         orientation_msg.data = [self.x_actual, self.y_actual]
         self.pub_current_pos.publish(orientation_msg)
 
+    def ennemy_angle_callback(self, msg):
+        self.angle_camera = msg.data
+
     #######A TESTER#############
     # Getting the ennemy x,y position
-    def ennemy_pos_timer_callback(self):
-        msg_pos_to_reach = Float64MultiArray()
-        index_angle = [i for i, val in enumerate(self.lidar_angle) if self.angle_camera-0.1 <= val <= self.angle_camera+0.1]
-        distance = self.lidar_distance[index_angle[0]]
-        difference_angle = self.angle_camera - self.current_orientation
-        # Normaliser la différence d'angle
-        difference_angle = (difference_angle) % (2 * pi)
-        #self.get_logger().info('Angle1 : %s' % str(difference_angle))
-        dY = distance * sin(difference_angle)  # changement en y
-        dX = distance * cos(difference_angle)  # changement en x
-        x_to_reach = self.x_actual - dX
-        y_to_reach = self.y_actual - dY
-        #self.get_logger().info('Delta x : %f, Delta y : %f  ONE' % (dX,dY))
-        #self.get_logger().info('Angle2 : %s' % str(atan2(dY,dX)))
-        msg_pos_to_reach.data = [x_to_reach, y_to_reach]
-        self.pub_pos_ennemy.publish(msg_pos_to_reach)
+    def ennemy_finded_callback(self, msg):
+        if (msg.data == True):
+            msg_pos_to_reach = Float64MultiArray()
+            index_angle = [i for i, val in enumerate(self.lidar_angle) if self.angle_camera-0.1 <= val <= self.angle_camera+0.1]
+            distance = self.lidar_distance[index_angle[0]]
+            difference_angle = self.angle_camera - self.current_orientation
+            # Normaliser la différence d'angle
+            difference_angle = (difference_angle) % (2 * pi)
+            #self.get_logger().info('Angle1 : %s' % str(difference_angle))
+            dY = distance * sin(difference_angle)  # changement en y
+            dX = distance * cos(difference_angle)  # changement en x
+            x_to_reach = self.x_actual - dX
+            y_to_reach = self.y_actual - dY
+            #self.get_logger().info('Delta x : %f, Delta y : %f  ONE' % (dX,dY))
+            #self.get_logger().info('Angle2 : %s' % str(atan2(dY,dX)))
+            msg_pos_to_reach.data = [x_to_reach, y_to_reach]
+            self.pub_pos_ennemy.publish(msg_pos_to_reach)
 
     # Detect object to avoid
     def detect_object(self):

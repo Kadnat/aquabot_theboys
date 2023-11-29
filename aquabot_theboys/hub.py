@@ -209,6 +209,8 @@ class MyHub(Node):
         self.create_subscription(Float64MultiArray, '/position/current', self.current_pos_callback, 10)
         # Getting ennemy boat position
         self.create_subscription(Float64MultiArray, '/position/ennemy', self.ennemy_position_callback, 10)
+        # To know if the boat ennemy is detected
+        self.create_subscription(Bool, 'object_detected', self.ennemy_finded_callback, 10)
         # Getting new point to avoid an object 
         self.create_subscription(Float64MultiArray, '/position/to_avoid', self.avoid_callback, 10)
         
@@ -244,7 +246,9 @@ class MyHub(Node):
     # Gettin x,y position of the ennemy boat
     def ennemy_position_callback(self,msg):
         self.x_ennemy, self.y_ennemy = msg.data
-        self.ennemy_detected = True
+
+    def ennemy_finded_callback(self,msg):
+        self.ennemy_detected = msg.data
 
     # To know if we are around delta meters from the other object
     def are_near(self, x1,y1,x2,y2, delta):
