@@ -28,9 +28,16 @@ def generate_launch_description():
         name="hub"
     )
 
+    object_detection_node = Node(
+        package="aquabot_theboys",
+        executable="object_detection_node",
+        name="object_detection_node"
+    )
+
     ld.add_action(sensors_node)
     ld.add_action(cmd_motors_node)
     ld.add_action(filters_node)
     ld.add_action(hub_node)
+    ld.add_action(object_detection_node)
 
     return ld
