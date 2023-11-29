@@ -11,6 +11,8 @@ from std_msgs.msg import Bool, Float64
 from math import atan, degrees
 from transforms3d.euler import quat2euler
 from transforms3d.quaternions import qconjugate
+import os
+
 
 class ObjectDetection:
     """
@@ -31,7 +33,8 @@ class ObjectDetection:
         Loads Yolo5 pretrained model.
         :return: Trained Pytorch model.
         """
-        model = torch.hub.load('ultralytics/yolov5', 'custom', path='/home/nathanael/vrx_ws/src/aquabot_theboys/resource/detectredboat_yolov5.pt',force_reload=True)
+        my_path = os.path.expanduser('~/vrx_ws/src/aquabot_theboys/resource/detectredboat_yolov5.pt')
+        model = torch.hub.load('ultralytics/yolov5', 'custom', path=my_path,force_reload=True)
         return model
 
 
