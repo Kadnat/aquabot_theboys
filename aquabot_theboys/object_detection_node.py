@@ -33,7 +33,7 @@ class ObjectDetection:
         Loads Yolo5 pretrained model.
         :return: Trained Pytorch model.
         """
-        my_path = os.path.expanduser('~/vrx_ws/src/aquabot_theboys/resource/detectredboat_yolov5.pt')
+        my_path = os.path.expanduser('~/vrx_ws/src/aquabot_theboys/resource/detectallobjects.pt')
         model = torch.hub.load('ultralytics/yolov5', 'custom', path=my_path,force_reload=True)
         return model
 
@@ -119,23 +119,38 @@ class ObjectDetectionNode:
 
         is_detected_msg = Bool()
         x_position_msg = Float64()
-        is_detected_msg.data = len(results[0]) > 0  # Here there is only one object to detect
-        if is_detected_msg.data:
-            # Calculate center of the box
-            x1, y1, x2, y2 = results[1][0][:4]
-            x_center_norm = (x1 + x2) / 2.0
-            # Convert in pixels
-            x_center_pixel = x_center_norm * frame.shape[1]
-            # Calculate difference from the frame center
-            diff = x_center_pixel - frame.shape[1] / 2
-            # Convert difference to angle
-            angle = atan(diff / frame.shape[1])
-            x_position_msg.data = angle  
+
+        # Convert classes dictionary to list
+        classes_list = list(self.detection.classes.values())
+
+        # Check if any objects are detected
+        if len(results[0]) > 0:
+            for i in range(len(results[0])):
+                # Check if the detected object is a 'red boat'
+                if int(results[0][i]) == classes_list.index('red boat'):
+                    is_detected_msg.data = True
+                    # Calculate center of the box
+                    x1, y1, x2, y2 = results[1][i][:4]
+                    x_center_norm = (x1 + x2) / 2.0
+                    # Convert in pixels
+                    x_center_pixel = x_center_norm * frame.shape[1]
+                    # Calculate difference from the frame center
+                    diff = x_center_pixel - frame.shape[1] / 2
+                    # Convert difference to angle
+                    angle = atan(diff / frame.shape[1])
+                    x_position_msg.data = angle  
+                    break
+            else:
+                is_detected_msg.data = False
+                x_position_msg.data = 0.0  # No angle to calculate
         else:
+            is_detected_msg.data = False
             x_position_msg.data = 0.0  # No angle to calculate
 
         self.object_detected_pub.publish(is_detected_msg)
         self.object_position_pub.publish(x_position_msg)
+
+
 
 
 rclpy.init()
