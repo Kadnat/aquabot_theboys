@@ -1,7 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from enum import Enum
-from std_msgs.msg import Float64MultiArray, Bool, Float64
+from std_msgs.msg import Float64MultiArray, Bool, Float64, UInt32
 from math import cos, sin, atan2, sqrt
 
 ####################CODE A COMMENTER AVEC JULES
@@ -192,6 +192,7 @@ class State(Enum):
     PATROL = 1
     FOLLOW = 2
     AVOID = 3
+    EXIT_BUOY = 4
 
 
 class MyHub(Node):
@@ -213,6 +214,7 @@ class MyHub(Node):
         self.create_subscription(Bool, 'object_detected', self.ennemy_finded_callback, 10)
 
         self.create_subscription(Float64, "/position/orientation", self.orientation_callback, 10)
+        self.create_subscription(UInt32, '/vrx/patrolandfollow/current_phase', self.current_phase_callback, 10)
         self.create_subscription(Float64, 'object_position', self.ennemy_angle_callback, 10)
         self.pub_look_around = self.create_publisher(Bool, '/position/look_around', 10)
         self.pub_follow_without_moving = self.create_publisher(Float64MultiArray, '/position/follow_without_moving',10)
@@ -242,6 +244,7 @@ class MyHub(Node):
         self.get_logger().info('Reaching Zone')
         self.orientation = 0.0
         self.angle_camera = 0.0
+        self.phase = 0
 
 
     def orientation_callback(self, msg):
@@ -265,6 +268,9 @@ class MyHub(Node):
 
     def ennemy_angle_callback(self, msg):
         self.angle_camera = msg.data
+
+    def current_phase_callback(self,msg):
+        self.phase = msg.data
 
     # To know if we are around delta meters from the other object
     def are_near(self, x1,y1,x2,y2, delta):
@@ -294,10 +300,10 @@ class MyHub(Node):
             if self.ctr_in_state < 100:
                 self.ctr_in_state += 1
             # If we are near to the buoy
-            if(self.are_near(self.x_actual, self.y_actual, self.x_buoy, self.y_buoy, 20.0)==True) and (self.ctr_in_state >= 100):
+            if self.phase == 2:
                 patrol = MyPatrolAlgo(self.x_buoy, self.y_buoy)
                 self.x_patrol, self.y_patrol = patrol.patrol_algo()
-                self.state_hub = State.PATROL
+                self.state_hub = State.EXIT_BUOY
                 # We're sending a position that is next to us to stop the motors
                 msg_pos_to_reach.data = [self.x_actual, self.y_actual] 
                 self.pub_pos_to_reach.publish(msg_pos_to_reach)
@@ -310,6 +316,14 @@ class MyHub(Node):
                 msg_pos_to_reach.data = [self.x_buoy, self.y_buoy] 
                 self.pub_pos_to_reach.publish(msg_pos_to_reach)
         # Patrol in the buoy zone   ###########PRENDRE EN COMPTE CAS OU ON ARRIVE FIN LISTE ET A TESTER 
+        elif self.state_hub == State.EXIT_BUOY:
+            if self.are_near(self.x_actual, self.y_actual, self.x_buoy+30.0, self.y_buoy+30.0, 5.0)==True:
+                msg_pos_to_reach.data = [self.x_actual, self.y_actual] 
+                self.pub_pos_to_reach.publish(msg_pos_to_reach)
+                self.state_hub = State.PATROL
+            else:
+                msg_pos_to_reach.data = [self.x_buoy+30.0, self.y_buoy+30.0] 
+                self.pub_pos_to_reach.publish(msg_pos_to_reach)
         elif self.state_hub == State.PATROL:
             if (self.ennemy_detected == True) and (self.ctr_in_state < 5):
                 self.ctr_in_state += 1
@@ -364,7 +378,7 @@ class MyHub(Node):
                 self.pub_look_around.publish(msg_bool) 
             else:
                 msg_turn_around = Bool()
-                msg_turn_around.data = True
+                msg_turn_around.data = False
                 self.get_logger().info('Not detected')
                 self.pub_look_around.publish(msg_turn_around)
         # Avoid objects  ######### A TESTER

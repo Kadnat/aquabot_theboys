@@ -49,9 +49,9 @@ class MyCmdMotors(Node):
         msg_thrust = Float64()
         #if (pre_orientation%(2*pi)) <= ((self.current_orientation+0.1)%(2*pi)) and (pre_orientation%(2*pi)) >= ((self.current_orientation-0.1)%(2*pi)):
         if msg.data == True:
-            msg_pos.data = -pi/4
+            msg_pos.data = -pi/2
         else:
-            msg_pos.data = pi/4
+            msg_pos.data = pi/2
         msg_thrust.data = 500.0
         # else:
         #     msg_pos.data = 0.0
