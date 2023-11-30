@@ -47,6 +47,7 @@ class MySensors(Node):
         self.pub_gps_ennemy = self.create_publisher(PoseStamped, '/vrx/patrolandfollow/alert_position', 10)
         # Object to avoid position
         self.pub_pos_to_avoid = self.create_publisher(Float64MultiArray, '/position/to_avoid', 10)
+        self.pub_turn_around = self.create_publisher(Bool, '/position/look_around', 10)
         
         # Our current orientation
         self.current_orientation = 0.0
@@ -189,10 +190,12 @@ class MySensors(Node):
     # Getting the ennemy x,y position
     def ennemy_finded_callback(self, msg):
         msg_pos_to_reach = Float64MultiArray()
-        if (msg.data == True) and (abs(self.angle_camera)<0.05):
+        if (msg.data == True) and (abs(self.angle_camera)<0.1) :
+            self.angle_ennemy = 0.0
+            self.distance_ennemy = 0.0
             for i, (angle, distance) in enumerate(zip(self.lidar_angle, self.lidar_distance)):
                 # Vérifiez si l'angle est entre -0.5 et 0.5 et si la distance est inférieure à 150
-                if -0.5 <= angle <= 0.5 and distance < 150:
+                if (self.angle_camera-0.1 <= angle <= self.angle_camera+0.1) and distance>0 and distance < 150:
                     #self.get_logger().info('angle : %f' % angle)
                     #self.get_logger().info('distance : %f' % distance)
                     self.angle_ennemy = angle
@@ -214,6 +217,7 @@ class MySensors(Node):
             msg_pos_to_reach.data = [x_to_reach, y_to_reach]
             if self.distance_ennemy <= 150 and self.distance_ennemy>0.0:
                 self.pub_pos_ennemy.publish(msg_pos_to_reach)
+                
 
     ####CODE NUL####
     # Detect object to avoid

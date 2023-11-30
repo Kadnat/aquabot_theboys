@@ -3,7 +3,7 @@
 import rclpy
 from rclpy.node import Node
 from math import atan2, pi
-from std_msgs.msg import Float64, Float64MultiArray
+from std_msgs.msg import Float64, Float64MultiArray, Bool
 from time import sleep
 
 
@@ -22,6 +22,10 @@ class MyCmdMotors(Node):
         # Get our actual position x,y
         self.create_subscription(Float64MultiArray, "/position/current", self.position_actual, 10)
 
+        self.create_subscription(Bool, '/position/look_around', self.look_around, 10)
+
+        self.create_subscription(Float64MultiArray, '/position/follow_without_moving',self.follow_without_moving, 10)
+
         # To know if we are changing its orientation
         self.aligning = False  
         # x,y variable
@@ -39,6 +43,47 @@ class MyCmdMotors(Node):
     # To get our actual orientation
     def orientation_callback(self,msg):
         self.current_orientation = msg.data
+
+    def look_around(self,msg):
+        msg_pos = Float64()
+        msg_thrust = Float64()
+        #if (pre_orientation%(2*pi)) <= ((self.current_orientation+0.1)%(2*pi)) and (pre_orientation%(2*pi)) >= ((self.current_orientation-0.1)%(2*pi)):
+        if msg.data == True:
+            msg_pos.data = -pi/4
+        else:
+            msg_pos.data = pi/4
+        msg_thrust.data = 500.0
+        # else:
+        #     msg_pos.data = 0.0
+        #     msg_thrust.data = 0.0
+        self.pub_pos.publish(msg_pos)
+        self.pub_thrust.publish(msg_thrust)
+
+    def follow_without_moving(self, msg):
+        msg_pos = Float64()
+        msg_thrust = Float64()
+        self.x_to_reach, self.y_to_reach = msg.data
+        delta_x = (self.x_actual - self.x_to_reach) 
+        delta_y = (self.y_actual - self.y_to_reach)
+        #self.get_logger().info('Delta x : %f, Delta y : %f   TWO' % (delta_x, delta_y))
+        #self.get_logger().info('Angle : %s' % str(atan2(delta_y, delta_x)))
+        # Calculating the angle we have to add at our orientation to point the object we want to reach
+        angle_diff = ((atan2(delta_y, delta_x) + self.current_orientation) - pi) % (2*pi) 
+        # A VOIR SI ON LAISSE
+        if angle_diff > pi:
+            angle_diff -= 2 * pi
+        elif angle_diff < -pi:
+            angle_diff += 2 * pi
+        msg_pos.data = -pi/2
+        msg_thrust.data = 600.0
+        if abs(angle_diff)>0.1: 
+            if angle_diff>0.0:
+                msg_pos.data = -pi/2
+            else:
+                msg_pos.data = pi/2
+            self.pub_pos.publish(msg_pos)
+            msg_thrust.data = 500.0
+            self.pub_thrust.publish(msg_thrust)
 
     # To control motors with a x,y command
     def cmd_motors_callback(self, msg):

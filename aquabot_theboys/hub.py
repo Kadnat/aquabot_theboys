@@ -1,7 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from enum import Enum
-from std_msgs.msg import Float64MultiArray, Bool
+from std_msgs.msg import Float64MultiArray, Bool, Float64
 from math import cos, sin, atan2, sqrt
 
 ####################CODE A COMMENTER AVEC JULES
@@ -211,6 +211,11 @@ class MyHub(Node):
         self.create_subscription(Float64MultiArray, '/position/ennemy', self.ennemy_position_callback, 10)
         # To know if the boat ennemy is detected
         self.create_subscription(Bool, 'object_detected', self.ennemy_finded_callback, 10)
+
+        self.create_subscription(Float64, "/position/orientation", self.orientation_callback, 10)
+        self.create_subscription(Float64, 'object_position', self.ennemy_angle_callback, 10)
+        self.pub_look_around = self.create_publisher(Bool, '/position/look_around', 10)
+        self.pub_follow_without_moving = self.create_publisher(Float64MultiArray, '/position/follow_without_moving',10)
         # Getting new point to avoid an object 
         # self.create_subscription(Float64MultiArray, '/position/to_avoid', self.avoid_callback, 10)
         
@@ -235,6 +240,12 @@ class MyHub(Node):
         self.state_hub = State.REACH_ZONE
         self.previous_state = State.REACH_ZONE
         self.get_logger().info('Reaching Zone')
+        self.orientation = 0.0
+        self.angle_camera = 0.0
+
+
+    def orientation_callback(self, msg):
+        self.orientation = msg.data
 
     # Getting x,y position of our boat
     def current_pos_callback(self, msg):
@@ -251,6 +262,9 @@ class MyHub(Node):
 
     def ennemy_finded_callback(self,msg):
         self.ennemy_detected = msg.data
+
+    def ennemy_angle_callback(self, msg):
+        self.angle_camera = msg.data
 
     # To know if we are around delta meters from the other object
     def are_near(self, x1,y1,x2,y2, delta):
@@ -269,7 +283,6 @@ class MyHub(Node):
     #         self.previous_state = self.state_hub
     #         self.state_hub = State.AVOID
     #         self.get_logger().info('Avoid an object')
-
 
     # State machine
     def hub_callback(self):
@@ -298,37 +311,62 @@ class MyHub(Node):
                 self.pub_pos_to_reach.publish(msg_pos_to_reach)
         # Patrol in the buoy zone   ###########PRENDRE EN COMPTE CAS OU ON ARRIVE FIN LISTE ET A TESTER 
         elif self.state_hub == State.PATROL:
-            if self.ctr_in_state < 5:
+            if (self.ennemy_detected == True) and (self.ctr_in_state < 5):
                 self.ctr_in_state += 1
+            else:
+                self.ctr_in_state = 0
             if (self.ennemy_detected == True) and (self.ctr_in_state>=5):
                 self.state_hub = State.FOLLOW
                 self.get_logger().info('Follow the ennemy')
                 self.ctr_in_state = 0
             # If we are near to the point provided, we go to the next one
-            elif self.are_near(self.x_actual, self.y_actual, self.x_patrol_point, self.y_patrol_point, 5.0) == True:
-                self.ctr_in_state += 1
-                self.x_patrol_point = self.x_patrol[self.ctr_in_state]
-                self.y_patrol_point = self.y_patrol[self.ctr_in_state]
-                msg_pos_to_reach.data = [self.x_patrol_point, self.y_patrol_point] 
-                self.pub_pos_to_reach.publish(msg_pos_to_reach)
-                self.get_logger().info('In patrol')
-            # If not we continue to move to the provided point
             else:
-                msg_pos_to_reach.data = [self.x_patrol_point, self.y_patrol_point] 
-                self.pub_pos_to_reach.publish(msg_pos_to_reach)
+                msg_turn_around = Bool()
+                msg_turn_around.data = True
+                self.pub_look_around.publish(msg_turn_around)
+            # elif self.are_near(self.x_actual, self.y_actual, self.x_patrol_point, self.y_patrol_point, 5.0) == True:
+            #     self.ctr_in_state += 1
+            #     self.x_patrol_point = self.x_patrol[self.ctr_in_state]
+            #     self.y_patrol_point = self.y_patrol[self.ctr_in_state]
+            #     msg_pos_to_reach.data = [self.x_patrol_point, self.y_patrol_point] 
+            #     self.pub_pos_to_reach.publish(msg_pos_to_reach)
+            #     self.get_logger().info('In patrol')
+            # # If not we continue to move to the provided point
+            # else:
+            #     msg_pos_to_reach.data = [self.x_patrol_point, self.y_patrol_point] 
+            #     self.pub_pos_to_reach.publish(msg_pos_to_reach)
         # Follow the red boat  ############# A TESTER
         elif self.state_hub == State.FOLLOW:
-            if self.ctr_in_state < 100:
-                self.ctr_in_state += 1
             # If we are to near from the ennemy boat
-            if(self.are_near(self.x_actual, self.y_actual, self.x_ennemy, self.y_ennemy, 30.0)==True) and (self.ctr_in_state >= 100):
+            if (self.ennemy_detected == True) and (self.are_near(self.x_actual, self.y_actual, self.x_ennemy, self.y_ennemy, 30.0)==True):
                 # We're sending a position that is next to us to stop the motors
-                msg_pos_to_reach.data = [self.x_actual, self.y_actual] 
-                self.pub_pos_to_reach.publish(msg_pos_to_reach)
-            else :
+                # msg_pos_to_reach.data = [self.x_actual, self.y_actual] 
+                # self.pub_pos_to_reach.publish(msg_pos_to_reach)
+                msg_bool = Bool()
+                if self.angle_camera >0:
+                    msg_bool.data = False
+                else:
+                    msg_bool.data = True
+                self.pub_look_around.publish(msg_bool) 
+                self.get_logger().info('To near')
+            elif self.ennemy_detected == True and abs(self.angle_camera)<0.1 :
                 # If we are not near to the buoy, we send the buoy position
                 msg_pos_to_reach.data = [self.x_ennemy, self.y_ennemy] 
                 self.pub_pos_to_reach.publish(msg_pos_to_reach)
+                self.get_logger().info('Follow it')
+            elif self.ennemy_detected == True:
+                msg_bool = Bool()
+                if self.angle_camera >0:
+                    msg_bool.data = False
+                else:
+                    msg_bool.data = True
+                self.get_logger().info('Detected but not in front')
+                self.pub_look_around.publish(msg_bool) 
+            else:
+                msg_turn_around = Bool()
+                msg_turn_around.data = True
+                self.get_logger().info('Not detected')
+                self.pub_look_around.publish(msg_turn_around)
         # Avoid objects  ######### A TESTER
         elif self.state_hub == State.AVOID:
             # Calculer l'angle entre la position actuelle et l'obstacle
