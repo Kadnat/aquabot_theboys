@@ -212,7 +212,7 @@ class MyHub(Node):
         # To know if the boat ennemy is detected
         self.create_subscription(Bool, 'object_detected', self.ennemy_finded_callback, 10)
         # Getting new point to avoid an object 
-        self.create_subscription(Float64MultiArray, '/position/to_avoid', self.avoid_callback, 10)
+        # self.create_subscription(Float64MultiArray, '/position/to_avoid', self.avoid_callback, 10)
         
         # x,y variable
         self.x_buoy = 0.0
@@ -225,6 +225,8 @@ class MyHub(Node):
         self.y_patrol = []
         self.x_patrol_point = 0.0
         self.y_patrol_point = 0.0
+        self.x_ennemy = 0.0
+        self.y_ennemy = 0.0
         # Ennemy detected
         self.ennemy_detected = False
         # Counter for getting the firsts values
@@ -256,16 +258,17 @@ class MyHub(Node):
             return True
         else:
             return False
-        
-    def avoid_callback(self, msg):
-        self.x_obstacle, self.y_actual = msg.data
-        # Calculer la distance entre la position actuelle et l'obstacle
-        distance = sqrt((self.x_actual-self.x_obstacle**2) + (self.y_actual-self.y_obstacle)**2)
-        # Si la distance est inférieure à la distance minimale, calculer les nouvelles coordonnées
-        if (distance < 30.0) and (self.arenear(self.x_obstacle,self.y_obstacle,self.x_ennemy,self.y_ennemy)==False):
-            self.previous_state = self.state_hub
-            self.state_hub = State.AVOID
-            self.get_logger().info('Avoid an object')
+    
+    # CRASH A CHAQUE CALCUL DE DISTANCE
+    # def avoid_callback(self, msg):
+    #     self.x_obstacle, self.y_obstacle = msg.data
+    #     # Calculer la distance entre la position actuelle et l'obstacle
+    #     distance = sqrt((self.x_actual-self.x_obstacle**2) + (self.y_actual-self.y_obstacle)**2)
+    #     # Si la distance est inférieure à la distance minimale, calculer les nouvelles coordonnées
+    #     if (distance < 30.0) and (self.arenear(self.x_obstacle,self.y_obstacle,self.x_ennemy,self.y_ennemy)==False):
+    #         self.previous_state = self.state_hub
+    #         self.state_hub = State.AVOID
+    #         self.get_logger().info('Avoid an object')
 
 
     # State machine
@@ -278,7 +281,7 @@ class MyHub(Node):
             if self.ctr_in_state < 100:
                 self.ctr_in_state += 1
             # If we are near to the buoy
-            if(self.are_near(self.x_actual, self.y_actual, self.x_buoy, self.y_buoy, 30.0)==True) and (self.ctr_in_state >= 100):
+            if(self.are_near(self.x_actual, self.y_actual, self.x_buoy, self.y_buoy, 20.0)==True) and (self.ctr_in_state >= 100):
                 patrol = MyPatrolAlgo(self.x_buoy, self.y_buoy)
                 self.x_patrol, self.y_patrol = patrol.patrol_algo()
                 self.state_hub = State.PATROL
@@ -295,9 +298,12 @@ class MyHub(Node):
                 self.pub_pos_to_reach.publish(msg_pos_to_reach)
         # Patrol in the buoy zone   ###########PRENDRE EN COMPTE CAS OU ON ARRIVE FIN LISTE ET A TESTER 
         elif self.state_hub == State.PATROL:
-            if self.ennemy_detected == True:
+            if self.ctr_in_state < 5:
+                self.ctr_in_state += 1
+            if (self.ennemy_detected == True) and (self.ctr_in_state>=5):
                 self.state_hub = State.FOLLOW
                 self.get_logger().info('Follow the ennemy')
+                self.ctr_in_state = 0
             # If we are near to the point provided, we go to the next one
             elif self.are_near(self.x_actual, self.y_actual, self.x_patrol_point, self.y_patrol_point, 5.0) == True:
                 self.ctr_in_state += 1

@@ -57,7 +57,7 @@ class MyCmdMotors(Node):
             angle_diff -= 2 * pi
         elif angle_diff < -pi:
             angle_diff += 2 * pi
-        self.get_logger().info('Angle : %s' % str(angle_diff))
+        #self.get_logger().info('Angle : %s' % str(angle_diff))
         # If the position we want to reach is too near to our actual position, we stop the motors
         if ((self.x_to_reach <= self.x_actual +5) and (self.x_to_reach >= self.x_actual -5)) and ((self.y_to_reach <= self.y_actual +5) and (self.y_to_reach >= self.y_actual -5)):
             msg_pos.data = 0.0
@@ -86,7 +86,7 @@ class MyCmdMotors(Node):
                     sleep(3)
                     #self.get_logger().info('good')
                 else :  
-                    msg_thrust.data = 5000.0
+                    msg_thrust.data = 10000.0
                     self.pub_thrust.publish(msg_thrust)
 
     
