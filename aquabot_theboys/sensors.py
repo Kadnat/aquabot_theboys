@@ -149,7 +149,7 @@ class MySensors(Node):
         dX = dist_bearing * cos(difference_angle)  
         x_to_reach = self.x_actual + dX
         y_to_reach = self.y_actual + dY
-        #elf.get_logger().info('Delta x : %f, Delta y : %f ' % (x_to_reach,y_to_reach))
+        self.get_logger().info('Buoy  x : %f,  y : %f ' % (x_to_reach,y_to_reach))
         #self.get_logger().info('Angle2 : %s' % str(atan2(dY,dX)))
         msg_pos_to_reach.data = [x_to_reach, y_to_reach]
         self.pub_pos_buoy.publish(msg_pos_to_reach)
@@ -195,14 +195,14 @@ class MySensors(Node):
             self.distance_ennemy = 0.0
             for i, (angle, distance) in enumerate(zip(self.lidar_angle, self.lidar_distance)):
                 # Vérifiez si l'angle est entre -0.5 et 0.5 et si la distance est inférieure à 150
-                if (self.angle_camera-0.1 <= angle <= self.angle_camera+0.1) and distance>0 and distance < 150:
+                if (self.angle_camera-0.4 <= angle <= self.angle_camera+0.4) and distance>0 and distance < 1000:
                     #self.get_logger().info('angle : %f' % angle)
                     #self.get_logger().info('distance : %f' % distance)
                     self.angle_ennemy = angle
                     self.distance_ennemy = distance
             difference_angle = self.angle_ennemy  - self.current_orientation
             # Normalize the angle difference
-            difference_angle = -((difference_angle) % (2 * pi) -pi)
+            difference_angle = ((difference_angle+pi) % (2 * pi) -pi)
             self.get_logger().info('angle_camera : %s' % str(self.angle_camera))
             self.get_logger().info('angle_equiv : %s' % str(self.angle_ennemy ))
             self.get_logger().info('Angle : %s' % str(difference_angle))
@@ -214,9 +214,15 @@ class MySensors(Node):
             y_to_reach = self.y_actual + dY
             #self.get_logger().info('Delta x : %f, Delta y : %f  ONE' % (dX,dY))
             #self.get_logger().info('Angle2 : %s' % str(atan2(dY,dX)))
-            msg_pos_to_reach.data = [x_to_reach, y_to_reach]
-            if self.distance_ennemy <= 150 and self.distance_ennemy>0.0:
+            if self.distance_ennemy <= 1000 and self.distance_ennemy>0.0:
+                msg_pos_to_reach.data = [x_to_reach, y_to_reach]
                 self.pub_pos_ennemy.publish(msg_pos_to_reach)
+                self.get_logger().info('Ennemy x : %f, Delta y : %f ' % (x_to_reach,y_to_reach))
+
+            else:
+                msg_pos_to_reach.data = [self.x_actual, self.y_actual]
+                self.pub_pos_ennemy.publish(msg_pos_to_reach)
+                
                 
 
     ####CODE NUL####

@@ -52,7 +52,7 @@ class MyCmdMotors(Node):
             msg_pos.data = -pi/2
         else:
             msg_pos.data = pi/2
-        msg_thrust.data = 500.0
+        msg_thrust.data = 200.0
         # else:
         #     msg_pos.data = 0.0
         #     msg_thrust.data = 0.0
@@ -109,6 +109,7 @@ class MyCmdMotors(Node):
             self.pub_pos.publish(msg_pos)
             msg_thrust.data = 0.0
             self.pub_thrust.publish(msg_thrust)
+
         else :
             # If the angle between us and the object we wand to reach is over 0.1 radians, we change our orientation
             if abs(angle_diff)>0.1: 

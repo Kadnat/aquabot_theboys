@@ -3,6 +3,7 @@ from rclpy.node import Node
 from enum import Enum
 from std_msgs.msg import Float64MultiArray, Bool, Float64, UInt32
 from math import cos, sin, atan2, sqrt
+from time import sleep
 
 ####################CODE A COMMENTER AVEC JULES
 #Problème de path si mis dans un autre fichier 
@@ -244,7 +245,9 @@ class MyHub(Node):
         self.get_logger().info('Reaching Zone')
         self.orientation = 0.0
         self.angle_camera = 0.0
+        self.angle_ennemy = 0.0
         self.phase = 0
+        self.aligning = False
 
 
     def orientation_callback(self, msg):
@@ -351,8 +354,31 @@ class MyHub(Node):
             #     self.pub_pos_to_reach.publish(msg_pos_to_reach)
         # Follow the red boat  ############# A TESTER
         elif self.state_hub == State.FOLLOW:
+            # if self.ennemy_detected == True and abs(self.angle_camera)<0.1 and (self.are_near(self.x_actual, self.y_actual, self.x_ennemy, self.y_ennemy, 5.0)==False):
+            #     msg_pos_to_reach.data = [self.x_ennemy, self.y_ennemy] 
+            #     self.pub_pos_to_reach.publish(msg_pos_to_reach)
+            #     self.get_logger().info('Follow it')
+            # elif self.ennemy_detected == True and abs(self.angle_camera)<0.1:  ###
+            #     msg_pos.data = 0.0
+            #     self.pub_pos.publish(msg_pos)
+            #     msg_thrust.data = 500.0
+            #     self.pub_thrust.publish(msg_thrust)
+            #     self.get_logger().info('Follow it trql')
             # If we are to near from the ennemy boat
-            if (self.ennemy_detected == True) and (self.are_near(self.x_actual, self.y_actual, self.x_ennemy, self.y_ennemy, 30.0)==True):
+            if self.ennemy_detected == True and abs(self.angle_camera)<0.1:
+                # If we are not near to the buoy, we send the buoy position
+                if (self.are_near(self.x_actual, self.y_actual, self.x_ennemy, self.y_ennemy, 10.0)==True):
+                    msg_pos_to_reach.data = [self.x_actual, self.y_actual] 
+                    self.pub_pos_to_reach.publish(msg_pos_to_reach)
+                    if self.aligning  == True:
+                        self.aligning  = False
+                        sleep(3)
+                    self.get_logger().info('In Front')
+                else:
+                    msg_pos_to_reach.data = [self.x_ennemy, self.y_ennemy] 
+                    self.pub_pos_to_reach.publish(msg_pos_to_reach)
+                    self.get_logger().info('Follow it')
+            elif (self.ennemy_detected == True):
                 # We're sending a position that is next to us to stop the motors
                 # msg_pos_to_reach.data = [self.x_actual, self.y_actual] 
                 # self.pub_pos_to_reach.publish(msg_pos_to_reach)
@@ -362,25 +388,14 @@ class MyHub(Node):
                 else:
                     msg_bool.data = True
                 self.pub_look_around.publish(msg_bool) 
-                self.get_logger().info('To near')
-            elif self.ennemy_detected == True and abs(self.angle_camera)<0.1 :
-                # If we are not near to the buoy, we send the buoy position
-                msg_pos_to_reach.data = [self.x_ennemy, self.y_ennemy] 
-                self.pub_pos_to_reach.publish(msg_pos_to_reach)
-                self.get_logger().info('Follow it')
-            elif self.ennemy_detected == True:
-                msg_bool = Bool()
-                if self.angle_camera >0:
-                    msg_bool.data = False
-                else:
-                    msg_bool.data = True
                 self.get_logger().info('Detected but not in front')
-                self.pub_look_around.publish(msg_bool) 
+                self.aligning  = True       
             else:
                 msg_turn_around = Bool()
                 msg_turn_around.data = False
                 self.get_logger().info('Not detected')
                 self.pub_look_around.publish(msg_turn_around)
+                self.aligning  = True
         # Avoid objects  ######### A TESTER
         elif self.state_hub == State.AVOID:
             # Calculer l'angle entre la position actuelle et l'obstacle
