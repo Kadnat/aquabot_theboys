@@ -2,7 +2,8 @@ import rclpy
 from rclpy.node import Node
 from enum import Enum
 from std_msgs.msg import Float64MultiArray, Bool, Float64, UInt32
-from math import cos, sin, atan2, sqrt
+from geometry_msgs.msg import PoseStamped
+from math import cos, radians
 from time import sleep
 
 ####################CODE A COMMENTER AVEC JULES
@@ -192,37 +193,39 @@ class State(Enum):
     REACH_ZONE = 0
     PATROL = 1
     FOLLOW = 2
-    AVOID = 3
-    EXIT_BUOY = 4
+    EXIT_BUOY = 3
+    GO_TO_POS_ENNEMY = 4
 
 
 class MyHub(Node):
     def __init__(self):
         super().__init__('hub') 
-        # position to reach
+        # Position à rejoindre
         self.pub_pos_to_reach = self.create_publisher(Float64MultiArray, '/position/to_reach', 10)
+        # Demande au moteurs de faire tourner le bateau sur lui même
+        self.pub_look_around = self.create_publisher(Bool, '/position/look_around', 10)
 
-        # Calling State Machine every 100ms        
+        # Appel de la machine à états toutes les 100 ms      
         timer_period_1 = 0.1  
         self.create_timer(timer_period_1, self.hub_callback)
-        # Getting Buoy position x,y
+        # Récupération de la position x,y de la bouée
         self.create_subscription(Float64MultiArray, '/position/buoy', self.position_buoy_callback, 10)
-        # Getting our Boat position x,y
+        # Récupération de la position x,y de notre bateau
         self.create_subscription(Float64MultiArray, '/position/current', self.current_pos_callback, 10)
-        # Getting ennemy boat position
+        # Récupération de la position x,y de l'ennemi
         self.create_subscription(Float64MultiArray, '/position/ennemy', self.ennemy_position_callback, 10)
-        # To know if the boat ennemy is detected
+        # Afin de savoir si l'ennemi a été détecté par la caméra
         self.create_subscription(Bool, 'object_detected', self.ennemy_finded_callback, 10)
-
+        # Récupération de l'orientation de notre bateau
         self.create_subscription(Float64, "/position/orientation", self.orientation_callback, 10)
+        # Récupération de l'état de la simulation  => 1: Rejoindre zone de patrouille; 2: Zone de patrouille rejoint; 3: Bateau ennemi détecté
         self.create_subscription(UInt32, '/vrx/patrolandfollow/current_phase', self.current_phase_callback, 10)
+        # Récupération de l'angle qui nous sépare entre notre bateau et l'ennemi (estimé par la caméra)
         self.create_subscription(Float64, 'object_position', self.ennemy_angle_callback, 10)
-        self.pub_look_around = self.create_publisher(Bool, '/position/look_around', 10)
-        self.pub_follow_without_moving = self.create_publisher(Float64MultiArray, '/position/follow_without_moving',10)
-        # Getting new point to avoid an object 
-        # self.create_subscription(Float64MultiArray, '/position/to_avoid', self.avoid_callback, 10)
+        # Récupération des positions gps de l'ennemi
+        self.create_subscription(PoseStamped, '/wamv/ais_sensor/ennemy_position', self.ennemy_position_given_callback, 10)
         
-        # x,y variable
+        # Variables de position
         self.x_buoy = 0.0
         self.y_buoy = 0.0
         self.x_actual = 0.0
@@ -235,79 +238,95 @@ class MyHub(Node):
         self.y_patrol_point = 0.0
         self.x_ennemy = 0.0
         self.y_ennemy = 0.0
-        # Ennemy detected
+        # Ennemi détecté
         self.ennemy_detected = False
-        # Counter for getting the firsts values
+        # Compteur pour laisser le temps au premiers messages ROS d'apparaitre
         self.ctr_in_state = 0
-        # State mahine variable
+        # Variable d'états
         self.state_hub = State.REACH_ZONE
         self.previous_state = State.REACH_ZONE
-        self.get_logger().info('Reaching Zone')
+        # Orientation de notre bateau
         self.orientation = 0.0
+        # Angle qui nous sépare du bateau ennemi (estimé par la caméra)
         self.angle_camera = 0.0
-        self.angle_ennemy = 0.0
+        # Phase de la simulation
         self.phase = 0
+        # Pour savoir si on vient de s'aligner
         self.aligning = False
+        # Pour savoir si la position de l'ennemi nous a été donné
+        self.ennemy_position_given = False
+        self.get_logger().info('Reaching Zone')
 
-
+    # Récupération de l'orientation de notre bateau
     def orientation_callback(self, msg):
         self.orientation = msg.data
 
-    # Getting x,y position of our boat
+    # Récupération de la position x,y de notre bateau
     def current_pos_callback(self, msg):
         self.x_actual, self.y_actual = msg.data
 
-    # Getting x,y position of the buoy
+    # Récupération de la position x,y de la bouée
     def position_buoy_callback(self, msg):
         self.x_buoy, self.y_buoy = msg.data   
         #self.get_logger().info('Position boué : (%f;%f)' % (self.x_buoy, self.y_buoy)) 
 
-    # Gettin x,y position of the ennemy boat
+    # Récupération de la position x,y de l'ennemi
     def ennemy_position_callback(self,msg):
         self.x_ennemy, self.y_ennemy = msg.data
 
+    # Afin de savoir si l'ennemi a été détecté par la caméra
     def ennemy_finded_callback(self,msg):
         self.ennemy_detected = msg.data
 
+    # Récupération de l'angle qui nous sépare entre notre bateau et l'ennemi (estimé par la caméra)
     def ennemy_angle_callback(self, msg):
         self.angle_camera = msg.data
-
+    
+    # Récupération de l'état de la simulation  => 1: Rejoindre zone de patrouille; 2: Zone de patrouille rejoint; 3: Bateau ennemi détecté
     def current_phase_callback(self,msg):
         self.phase = msg.data
 
-    # To know if we are around delta meters from the other object
+    # Pour savoir si x2,y2 est dans un rayon delta de x1,y1 
     def are_near(self, x1,y1,x2,y2, delta):
         if((x1<=x2+delta) and (x1>=x2-delta)) and ((y1<=y2+delta) and (y1>=y2-delta)):
             return True
         else:
             return False
-    
-    # CRASH A CHAQUE CALCUL DE DISTANCE
-    # def avoid_callback(self, msg):
-    #     self.x_obstacle, self.y_obstacle = msg.data
-    #     # Calculer la distance entre la position actuelle et l'obstacle
-    #     distance = sqrt((self.x_actual-self.x_obstacle**2) + (self.y_actual-self.y_obstacle)**2)
-    #     # Si la distance est inférieure à la distance minimale, calculer les nouvelles coordonnées
-    #     if (distance < 30.0) and (self.arenear(self.x_obstacle,self.y_obstacle,self.x_ennemy,self.y_ennemy)==False):
-    #         self.previous_state = self.state_hub
-    #         self.state_hub = State.AVOID
-    #         self.get_logger().info('Avoid an object')
 
-    # State machine
+    # Pour récupéré la position de l'ennemi donné au bout de 180 secondes
+    def ennemy_position_given_callback(self, msg):
+        msg_to_send = PoseStamped()
+        msg_to_send._pose._position.x = msg.pose.position.x
+        msg_to_send.pose.position.y =msg.pose.position.y
+        self.pub_gps_ennemy.publish(msg_to_send)
+        # Coordonnées GPS de l'origine
+        lat_ref = 48.04631295
+        lon_ref = -4.9763167
+        # Rayon de la terre
+        R = 6378137
+
+        lat_rad = radians(msg.latitude)
+        lon_rad = radians(msg.longitude)
+        lat_ref_rad = radians(lat_ref)
+        lon_ref_rad = radians(lon_ref)
+
+        self.x_ennemy = R * (lon_rad - lon_ref_rad) * cos(lat_ref_rad)
+        self.y_ennemy = R * (lat_rad - lat_ref_rad)
+        self.state_hub = State.GO_TO_POS_ENNEMY
+
+    # Machine à états
     def hub_callback(self):
-        # The x,y position to send to the motors
         msg_pos_to_reach = Float64MultiArray()
-        # Reaching the buoy 
+        # Rejoindre la bouée
         if self.state_hub == State.REACH_ZONE:
-            # To not count to much
             if self.ctr_in_state < 100:
                 self.ctr_in_state += 1
-            # If we are near to the buoy
+            # Si nous avons atteint la phase 2
             if self.phase == 2:
                 patrol = MyPatrolAlgo(self.x_buoy, self.y_buoy)
                 self.x_patrol, self.y_patrol = patrol.patrol_algo()
                 self.state_hub = State.EXIT_BUOY
-                # We're sending a position that is next to us to stop the motors
+                # On demande a arreter les moteurs
                 msg_pos_to_reach.data = [self.x_actual, self.y_actual] 
                 self.pub_pos_to_reach.publish(msg_pos_to_reach)
                 self.get_logger().info('Go patrol')
@@ -315,18 +334,19 @@ class MyHub(Node):
                 self.y_patrol_point = self.y_actual
                 self.ctr_in_state = 0
             else :
-                # If we are not near to the buoy, we send the buoy position
+                # Si nous ne sommes pas arrivé à la phase deux, on rejoint la bouée
                 msg_pos_to_reach.data = [self.x_buoy, self.y_buoy] 
                 self.pub_pos_to_reach.publish(msg_pos_to_reach)
-        # Patrol in the buoy zone   ###########PRENDRE EN COMPTE CAS OU ON ARRIVE FIN LISTE ET A TESTER 
+        # Cet état nous permet de nous décaler de la bouée pour pouvoir nous déplacer rapidement
         elif self.state_hub == State.EXIT_BUOY:
             if self.are_near(self.x_actual, self.y_actual, self.x_buoy+30.0, self.y_buoy+30.0, 5.0)==True:
                 msg_pos_to_reach.data = [self.x_actual, self.y_actual] 
                 self.pub_pos_to_reach.publish(msg_pos_to_reach)
                 self.state_hub = State.PATROL
             else:
-                msg_pos_to_reach.data = [self.x_buoy+30.0, self.y_buoy+30.0] 
+                msg_pos_to_reach.data = [self.x_buoy+35.0, self.y_buoy+35.0] 
                 self.pub_pos_to_reach.publish(msg_pos_to_reach)
+        # Cet état nous fait tourner sur nous même jusqu'au moment où on détecte l'ennemi
         elif self.state_hub == State.PATROL:
             if (self.ennemy_detected == True) and (self.ctr_in_state < 5):
                 self.ctr_in_state += 1
@@ -336,52 +356,27 @@ class MyHub(Node):
                 self.state_hub = State.FOLLOW
                 self.get_logger().info('Follow the ennemy')
                 self.ctr_in_state = 0
-            # If we are near to the point provided, we go to the next one
             else:
                 msg_turn_around = Bool()
                 msg_turn_around.data = True
                 self.pub_look_around.publish(msg_turn_around)
-            # elif self.are_near(self.x_actual, self.y_actual, self.x_patrol_point, self.y_patrol_point, 5.0) == True:
-            #     self.ctr_in_state += 1
-            #     self.x_patrol_point = self.x_patrol[self.ctr_in_state]
-            #     self.y_patrol_point = self.y_patrol[self.ctr_in_state]
-            #     msg_pos_to_reach.data = [self.x_patrol_point, self.y_patrol_point] 
-            #     self.pub_pos_to_reach.publish(msg_pos_to_reach)
-            #     self.get_logger().info('In patrol')
-            # # If not we continue to move to the provided point
-            # else:
-            #     msg_pos_to_reach.data = [self.x_patrol_point, self.y_patrol_point] 
-            #     self.pub_pos_to_reach.publish(msg_pos_to_reach)
-        # Follow the red boat  ############# A TESTER
+        # On rejoint le bateau
         elif self.state_hub == State.FOLLOW:
-            # if self.ennemy_detected == True and abs(self.angle_camera)<0.1 and (self.are_near(self.x_actual, self.y_actual, self.x_ennemy, self.y_ennemy, 5.0)==False):
-            #     msg_pos_to_reach.data = [self.x_ennemy, self.y_ennemy] 
-            #     self.pub_pos_to_reach.publish(msg_pos_to_reach)
-            #     self.get_logger().info('Follow it')
-            # elif self.ennemy_detected == True and abs(self.angle_camera)<0.1:  ###
-            #     msg_pos.data = 0.0
-            #     self.pub_pos.publish(msg_pos)
-            #     msg_thrust.data = 500.0
-            #     self.pub_thrust.publish(msg_thrust)
-            #     self.get_logger().info('Follow it trql')
-            # If we are to near from the ennemy boat
-            if self.ennemy_detected == True and abs(self.angle_camera)<0.1:
-                # If we are not near to the buoy, we send the buoy position
-                if (self.are_near(self.x_actual, self.y_actual, self.x_ennemy, self.y_ennemy, 10.0)==True):
+            if self.ennemy_detected == True and abs(self.angle_camera)<0.3:
+                # Si nous sommes trop proche ou que nous venons de nous aligner, on remet le moteur en position initiale
+                if (self.are_near(self.x_actual, self.y_actual, self.x_ennemy, self.y_ennemy, 20.0)==True) and (self.aligning  == True):
                     msg_pos_to_reach.data = [self.x_actual, self.y_actual] 
                     self.pub_pos_to_reach.publish(msg_pos_to_reach)
-                    if self.aligning  == True:
-                        self.aligning  = False
-                        sleep(3)
+                    self.aligning  = False
+                    sleep(3)
                     self.get_logger().info('In Front')
+                # Sinon on rejoint la position de l'ennemi
                 else:
                     msg_pos_to_reach.data = [self.x_ennemy, self.y_ennemy] 
                     self.pub_pos_to_reach.publish(msg_pos_to_reach)
                     self.get_logger().info('Follow it')
+            # Si l'ennemi est détecté mais qu'il n'est pas en face, on tourne jusqu'à avoir le bateau en face
             elif (self.ennemy_detected == True):
-                # We're sending a position that is next to us to stop the motors
-                # msg_pos_to_reach.data = [self.x_actual, self.y_actual] 
-                # self.pub_pos_to_reach.publish(msg_pos_to_reach)
                 msg_bool = Bool()
                 if self.angle_camera >0:
                     msg_bool.data = False
@@ -389,24 +384,24 @@ class MyHub(Node):
                     msg_bool.data = True
                 self.pub_look_around.publish(msg_bool) 
                 self.get_logger().info('Detected but not in front')
-                self.aligning  = True       
+                self.aligning  = True      
+            # Si le bateau n'est plus détecté, on tourne sur nous même
             else:
                 msg_turn_around = Bool()
                 msg_turn_around.data = False
                 self.get_logger().info('Not detected')
                 self.pub_look_around.publish(msg_turn_around)
                 self.aligning  = True
-        # Avoid objects  ######### A TESTER
-        elif self.state_hub == State.AVOID:
-            # Calculer l'angle entre la position actuelle et l'obstacle
-            angle = atan2(self.y_actual-self.y_obstacle, self.x_actual-self.x_obstacle)
-            # Calculer les nouvelles coordonnées en ajoutant une étape dans la direction opposée
-            new_x = self.x_actual + 30.0 * cos(angle)
-            new_y = self.y_actual + 30.0 * sin(angle)
-            msg_pos_to_reach.data = [new_x, new_y] 
-            self.pub_pos_to_reach.publish(msg_pos_to_reach)
-            self.state_hub = self.previous_state
-        else:
+        # On rejoint la position de l'ennemi fournie
+        elif self.state_hub == State.GO_TO_POS_ENNEMY:
+            self.get_logger().info('In Go TO POS ENNEMY')
+            if (self.are_near(self.x_actual, self.y_actual, self.x_ennemy, self.y_ennemy, 20.0)==True):
+                    msg_pos_to_reach.data = [self.x_actual, self.y_actual] 
+                    self.pub_pos_to_reach.publish(msg_pos_to_reach)
+                    sleep(3)
+            else:
+                msg_pos_to_reach.data = [self.x_ennemy, self.y_ennemy] 
+                self.pub_pos_to_reach.publish(msg_pos_to_reach)
             print('State unknow')
 
 
@@ -422,3 +417,4 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+
