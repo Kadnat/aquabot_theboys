@@ -3,7 +3,7 @@
 L'utilisation du code nécessite un certain nombre de bibliothèques Python. Pour les
 installer sur votre environnement, nous vous invitons à suivre les étapes suivantes.
 
-# Etape 1 : Environnement (Ubuntu 22.04)
+## Etape 1 : Environnement (Ubuntu 22.04)
 
 Pour cette étape, vous avez 2 choix :
 
@@ -13,7 +13,7 @@ Installer Ubuntu 22.04 sur une machine virtuelle
 ```
 Ubuntu 22.04.2 LTS Image
 
-# Etape 2 : Installer les bibliothèques Python
+## Etape 2 : Installer les bibliothèques Python
 
 **Attention : assurez-vous d'avoir placé le dossier aquabot_theboys dans
 /home/user/vrx_ws/src/**
@@ -39,7 +39,7 @@ pip install setuptools==58.2.
 Le modèle de reconnaissance d’objet récupérera la dernière version de setuptools sur
 internet au lancement du nœud.
 
-# Etape 3 : Lancement de l'environnement
+## Etape 3 : Lancement de l'environnement
 
 Notre lanceur devra être lancé après le lancement de l’environnement Gazebo. Voici la
 commande nécessaire :
@@ -48,4 +48,6 @@ commande nécessaire :
 ros2 launch aquabot_theboys aquabot_theboys.launcher.py
 ```
 
+# Rapport
 
+Le rapport est disponible [ici](https://github.com/Kadnat/aquabot_theboys/tree/main/rapports)
